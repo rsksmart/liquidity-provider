@@ -68,6 +68,10 @@ func (lp *LocalProvider) Address() string {
 	return lp.account.Address.String()
 }
 
+func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
+	return lp.ks.SignHash(*lp.account, hash)
+}
+
 func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int) (*accounts.Account, error) {
 	if cap(ks.Accounts()) == 0 {
 		log.Info("no RSK account found")
