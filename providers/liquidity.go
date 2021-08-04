@@ -20,7 +20,7 @@ import (
 type LiquidityProvider interface {
 	GetQuote(types.Quote, uint64, big.Int) *types.Quote
 	Address() string
-	SignHash(hash []byte) []byte
+	SignHash(hash []byte) ([]byte, error)
 }
 
 type LocalProvider struct {
