@@ -20,6 +20,7 @@ import (
 type LiquidityProvider interface {
 	GetQuote(types.Quote, uint64, big.Int) *types.Quote
 	Address() string
+	SignHash() []byte
 }
 
 type LocalProvider struct {
@@ -66,6 +67,10 @@ func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice big.Int) *
 
 func (lp *LocalProvider) Address() string {
 	return lp.account.Address.String()
+}
+
+func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
+	return lp.ks.SignHash(*lp.account, hash)
 }
 
 func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int) (*accounts.Account, error) {
