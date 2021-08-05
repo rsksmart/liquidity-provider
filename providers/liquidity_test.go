@@ -83,6 +83,9 @@ func testGetQuoteLocal(t *testing.T) {
 	if nq.CallFee.Cmp(big.NewInt(0)) < 0 {
 		t.Fatal("invalid call fee")
 	}
+	if nq.PenaltyFee.Cmp(big.NewInt(0)) < 0 {
+		t.Fatal("invalid penalty fee")
+	}
 	if nq.Confirmations == 0 {
 		t.Fatal("invalid confirmations")
 	}
