@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,7 +29,7 @@ type LocalProvider struct {
 	ks      *keystore.KeyStore
 }
 
-func NewLocalProvider(keydir string, accountNum int) (*LocalProvider, error) {
+func NewLocalProvider(keydir string, accountNum int, in *os.File) (*LocalProvider, error) {
 	kd := keydir
 
 	if kd == "" {
@@ -38,7 +39,7 @@ func NewLocalProvider(keydir string, accountNum int) (*LocalProvider, error) {
 		return nil, err
 	}
 	ks := keystore.NewKeyStore(kd, keystore.StandardScryptN, keystore.StandardScryptP)
-	acc, err := retreiveOrCreateAccount(ks, accountNum)
+	acc, err := retreiveOrCreateAccount(ks, accountNum, in)
 
 	if err != nil {
 		return nil, err
@@ -73,17 +74,17 @@ func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
 	return lp.ks.SignHash(*lp.account, hash)
 }
 
-func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int) (*accounts.Account, error) {
+func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
 	if cap(ks.Accounts()) == 0 {
 		log.Info("no RSK account found")
-		acc, err := createAccount(ks)
+		acc, err := createAccount(ks, in)
 		return acc, err
 	} else {
 		if cap(ks.Accounts()) <= int(accountNum) {
 			return nil, fmt.Errorf("account number %v not found", accountNum)
 		}
 		acc := ks.Accounts()[accountNum]
-		passwd, err := readPasswd()
+		passwd, err := enterPasswd(in)
 
 		if err != nil {
 			return nil, err
@@ -93,8 +94,8 @@ func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int) (*accounts.A
 	}
 }
 
-func createAccount(ks *keystore.KeyStore) (*accounts.Account, error) {
-	passwd, err := createPasswd()
+func createAccount(ks *keystore.KeyStore, in *os.File) (*accounts.Account, error) {
+	passwd, err := createPasswd(in)
 
 	if err != nil {
 		return nil, err
@@ -113,40 +114,66 @@ func createAccount(ks *keystore.KeyStore) (*accounts.Account, error) {
 	return &acc, err
 }
 
-func readPasswd() (string, error) {
+func enterPasswd(in *os.File) (string, error) {
 	fmt.Println("enter password for RSK account")
 	fmt.Print("password: ")
-	bytepw, err := term.ReadPassword(int(syscall.Stdin))
+	var pwd string
+	var err error
+	if in == nil {
+		pwd, err = readPasswdCons(nil)
+	} else {
+		pwd, err = readPasswdReader(bufio.NewReader(in))
+	}
 	fmt.Println()
-	return string(bytepw), err
+	return pwd, err
 }
 
-func createPasswd() (string, error) {
+func createPasswd(in *os.File) (string, error) {
 	fmt.Println("creating password for new RSK account")
 	fmt.Println("WARNING: the account will be lost forever if you forget this password!!! Do you understand? (yes/[no])")
 
-	r := bufio.NewReader(os.Stdin)
-	str, _ := r.ReadString('\n')
+	var r *bufio.Reader
+	var readPasswd func(*bufio.Reader) (string, error)
+	if in == nil {
+		r = bufio.NewReader(os.Stdin)
+		readPasswd = readPasswdCons
+	} else {
+		r = bufio.NewReader(in)
+		readPasswd = readPasswdReader
+	}
 
+	str, _ := r.ReadString('\n')
 	if str != "yes\n" {
-		return "", errors.New("must type yes")
+		return "", errors.New("must say yes")
 	}
 	fmt.Print("password: ")
-	bytepw1, err := term.ReadPassword(int(syscall.Stdin))
+	pwd1, err := readPasswd(r)
 	fmt.Println()
-
 	if err != nil {
 		return "", err
 	}
+
 	fmt.Print("repeat password: ")
-	bytepw2, err := term.ReadPassword(int(syscall.Stdin))
+	pwd2, err := readPasswd(r)
 	fmt.Println()
-
 	if err != nil {
 		return "", err
 	}
-	if string(bytepw1) != string(bytepw2) {
+	if pwd1 != pwd2 {
 		return "", errors.New("passwords do not match")
 	}
-	return string(bytepw1), nil
+	return pwd1, nil
+}
+
+func readPasswdCons(r *bufio.Reader) (string, error) {
+	bytes, err := term.ReadPassword(int(syscall.Stdin))
+	return string(bytes), err
+}
+
+func readPasswdReader(r *bufio.Reader) (string, error) {
+	str, err := r.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.Trim(str, "\n"), nil
 }
