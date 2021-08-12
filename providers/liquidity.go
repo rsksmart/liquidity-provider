@@ -57,6 +57,7 @@ func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice big.Int) *
 	q.Confirmations = 10
 	q.TimeForDeposit = 3600
 	q.CallTime = 3600
+	q.PenaltyFee = *big.NewInt(10)
 	q.Nonce = uint(rand.Uint64())
 	cost := big.NewInt(0).Mul(&gasPrice, big.NewInt(int64(gas)))
 	fee := cost.Div(cost, big.NewInt(33))
