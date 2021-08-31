@@ -16,7 +16,7 @@ type Quote struct {
 	ContractAddr       string  `json:"contractAddr" db:"contract_addr"`
 	Data               string  `json:"data" db:"data"`
 	GasLimit           uint    `json:"gasLimit" db:"gas_limit"`
-	Nonce              uint    `json:"nonce" db:"nonce"`
+	Nonce              int     `json:"nonce" db:"nonce"`
 	Value              big.Int `json:"value" db:"value"`
 	AgreementTimestamp uint    `json:"agreementTimestamp" db:"agreement_timestamp"`
 	TimeForDeposit     uint    `json:"timeForDeposit" db:"time_for_deposit"`
