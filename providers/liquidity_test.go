@@ -9,11 +9,13 @@ import (
 	"github.com/rsksmart/liquidity-provider/types"
 )
 
+var btcAddr = "123"
+
 func newLocalProvider(t *testing.T) *LocalProvider {
 	f := getFile("yes\n1234\n1234\n", t)
 	defer f.Close()
 
-	lp, err := NewLocalProvider(t.TempDir(), 0, f)
+	lp, err := NewLocalProvider(t.TempDir(), 0, f, btcAddr)
 	if err != nil {
 		t.Fatal("error creating local provider: ", err)
 	}
@@ -94,6 +96,9 @@ func testGetQuoteLocal(t *testing.T) {
 	}
 	if nq.TimeForDeposit == 0 {
 		t.Fatal("time for deposit is 0")
+	}
+	if nq.LPBTCAddr != btcAddr {
+		t.Fatal("bitcoin address wasn't set")
 	}
 }
 
