@@ -25,11 +25,12 @@ type LiquidityProvider interface {
 }
 
 type LocalProvider struct {
-	account *accounts.Account
-	ks      *keystore.KeyStore
+	account    *accounts.Account
+	ks         *keystore.KeyStore
+	btcAddress string
 }
 
-func NewLocalProvider(keydir string, accountNum int, in *os.File) (*LocalProvider, error) {
+func NewLocalProvider(keydir string, accountNum int, in *os.File, btcAddr string) (*LocalProvider, error) {
 	kd := keydir
 
 	if kd == "" {
@@ -45,13 +46,15 @@ func NewLocalProvider(keydir string, accountNum int, in *os.File) (*LocalProvide
 		return nil, err
 	}
 	lp := LocalProvider{
-		account: acc,
-		ks:      ks,
+		account:    acc,
+		ks:         ks,
+		btcAddress: btcAddr,
 	}
 	return &lp, nil
 }
 
 func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice big.Int) *types.Quote {
+	q.LPBTCAddr = lp.btcAddress
 	q.LPRSKAddr = lp.account.Address.String()
 	// TODO better way to compute fee, times, etc.
 	q.Confirmations = 10
