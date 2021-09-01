@@ -25,33 +25,41 @@ type LiquidityProvider interface {
 }
 
 type LocalProvider struct {
-	account *accounts.Account
-	ks      *keystore.KeyStore
+	account    *accounts.Account
+	ks         *keystore.KeyStore
+	btcAddress string
 }
 
-func NewLocalProvider(keydir string, accountNum int, in *os.File) (*LocalProvider, error) {
-	kd := keydir
+type ProviderConfig struct {
+	keydir     string
+	btcAddr    string
+	accountNum int
+	pwdFile    *os.File
+}
 
-	if kd == "" {
-		kd = "keystore"
+func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
+	if config.keydir == "" {
+		config.keydir = "keystore"
 	}
-	if err := os.MkdirAll(kd, 0700); err != nil {
+	if err := os.MkdirAll(config.keydir, 0700); err != nil {
 		return nil, err
 	}
-	ks := keystore.NewKeyStore(kd, keystore.StandardScryptN, keystore.StandardScryptP)
-	acc, err := retreiveOrCreateAccount(ks, accountNum, in)
+	ks := keystore.NewKeyStore(config.keydir, keystore.StandardScryptN, keystore.StandardScryptP)
+	acc, err := retreiveOrCreateAccount(ks, config.accountNum, config.pwdFile)
 
 	if err != nil {
 		return nil, err
 	}
 	lp := LocalProvider{
-		account: acc,
-		ks:      ks,
+		account:    acc,
+		ks:         ks,
+		btcAddress: config.btcAddr,
 	}
 	return &lp, nil
 }
 
 func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice big.Int) *types.Quote {
+	q.LPBTCAddr = lp.btcAddress
 	q.LPRSKAddr = lp.account.Address.String()
 	// TODO better way to compute fee, times, etc.
 	q.Confirmations = 10
