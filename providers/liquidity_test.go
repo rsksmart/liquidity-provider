@@ -14,10 +14,10 @@ var btcAddr = "123"
 func newLocalProvider(t *testing.T) *LocalProvider {
 	f := getFile("yes\n1234\n1234\n", t)
 	cfg := ProviderConfig{
-		btcAddr:    btcAddr,
-		keydir:     t.TempDir(),
-		accountNum: 0,
-		pwdFile:    f,
+		BtcAddr:    btcAddr,
+		Keydir:     t.TempDir(),
+		AccountNum: 0,
+		PwdFile:    f,
 	}
 	defer f.Close()
 

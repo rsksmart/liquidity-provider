@@ -31,21 +31,21 @@ type LocalProvider struct {
 }
 
 type ProviderConfig struct {
-	keydir     string
-	btcAddr    string
-	accountNum int
-	pwdFile    *os.File
+	Keydir     string
+	BtcAddr    string
+	AccountNum int
+	PwdFile    *os.File
 }
 
 func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
-	if config.keydir == "" {
-		config.keydir = "keystore"
+	if config.Keydir == "" {
+		config.Keydir = "keystore"
 	}
-	if err := os.MkdirAll(config.keydir, 0700); err != nil {
+	if err := os.MkdirAll(config.Keydir, 0700); err != nil {
 		return nil, err
 	}
-	ks := keystore.NewKeyStore(config.keydir, keystore.StandardScryptN, keystore.StandardScryptP)
-	acc, err := retreiveOrCreateAccount(ks, config.accountNum, config.pwdFile)
+	ks := keystore.NewKeyStore(config.Keydir, keystore.StandardScryptN, keystore.StandardScryptP)
+	acc, err := retreiveOrCreateAccount(ks, config.AccountNum, config.PwdFile)
 
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 	lp := LocalProvider{
 		account:    acc,
 		ks:         ks,
-		btcAddress: config.btcAddr,
+		btcAddress: config.BtcAddr,
 	}
 	return &lp, nil
 }
