@@ -13,9 +13,15 @@ var btcAddr = "123"
 
 func newLocalProvider(t *testing.T) *LocalProvider {
 	f := getFile("yes\n1234\n1234\n", t)
+	cfg := ProviderConfig{
+		btcAddr:    btcAddr,
+		keydir:     t.TempDir(),
+		accountNum: 0,
+		pwdFile:    f,
+	}
 	defer f.Close()
 
-	lp, err := NewLocalProvider(t.TempDir(), 0, f, btcAddr)
+	lp, err := NewLocalProvider(cfg)
 	if err != nil {
 		t.Fatal("error creating local provider: ", err)
 	}
