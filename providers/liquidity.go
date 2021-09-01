@@ -30,6 +30,13 @@ type LocalProvider struct {
 	btcAddress string
 }
 
+type ProviderConfig struct {
+	keydir     string
+	btcAddr    string
+	accountNum int
+	pwdFile    *os.File
+}
+
 func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 	if config.keydir == "" {
 		config.keydir = "keystore"
