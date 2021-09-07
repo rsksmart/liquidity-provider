@@ -15,7 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
-	coreTypes "github.com/ethereum/go-ethereum/core/types"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/rsksmart/liquidity-provider/types"
 	log "github.com/sirupsen/logrus"
@@ -90,7 +90,7 @@ func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
 	return lp.ks.SignHash(*lp.account, crypto.Keccak256(buf.Bytes()))
 }
 
-func (lp *LocalProvider) SignTx(tx *coreTypes.Transaction, chainId *big.Int) (*coreTypes.Transaction, error) {
+func (lp *LocalProvider) SignTx(tx *gethTypes.Transaction, chainId *big.Int) (*gethTypes.Transaction, error) {
 	return lp.ks.SignTx(*lp.account, tx, chainId)
 }
 
