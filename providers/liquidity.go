@@ -11,8 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	"bytes"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/rsksmart/liquidity-provider/types"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/term"
@@ -80,7 +83,10 @@ func (lp *LocalProvider) Address() string {
 }
 
 func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
-	return lp.ks.SignHash(*lp.account, hash)
+	var buf bytes.Buffer
+	buf.WriteString("\x19Ethereum Signed Message:\n32")
+	buf.Write(hash)
+	return lp.ks.SignHash(*lp.account, crypto.Keccak256(buf.Bytes()))
 }
 
 func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
