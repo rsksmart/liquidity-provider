@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
+	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/rsksmart/liquidity-provider/types"
 	log "github.com/sirupsen/logrus"
@@ -87,6 +88,10 @@ func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
 	buf.WriteString("\x19Ethereum Signed Message:\n32")
 	buf.Write(hash)
 	return lp.ks.SignHash(*lp.account, crypto.Keccak256(buf.Bytes()))
+}
+
+func (lp *LocalProvider) SignTx(tx *coreTypes.Transaction, chainId *big.Int) (*coreTypes.Transaction, error) {
+	return lp.ks.SignTx(*lp.account, tx, chainId)
 }
 
 func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
