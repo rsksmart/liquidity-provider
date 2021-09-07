@@ -1,6 +1,8 @@
 package providers
 
 import (
+	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -26,6 +28,33 @@ func newLocalProvider(t *testing.T) *LocalProvider {
 		t.Fatal("error creating local provider: ", err)
 	}
 	return lp
+}
+
+func TestSignature(t *testing.T) {
+	expected := "5747fc2a9327abf9a3dd8caf454b41dc867f2f33b6fdf1caad1d0b050ce43ceb35cc2214ed808af3598f44d4dfb15e5dfafd88c6367b0c9820b4076a22e3dcdc00"
+	f := getFile("1234\n1234\n", t)
+	defer f.Close()
+
+	cfg := ProviderConfig{
+		Keydir:     "./testdata/keystore/keystore",
+		AccountNum: 0,
+		PwdFile:    f,
+	}
+
+	p, err := NewLocalProvider(cfg)
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(p.account.Address)
+	h, _ := hex.DecodeString("4545454545454545454545454545454545454545454545454545454545454545")
+
+	b, err := p.SignHash(h)
+	if err != nil {
+		t.Errorf("error signing hash: %v", err)
+	}
+	if hex.EncodeToString(b) != expected {
+		t.Errorf("wrong signature: %x", b)
+	}
 }
 
 func TestCreatePassword(t *testing.T) {
