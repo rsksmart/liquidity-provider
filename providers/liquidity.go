@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/rsksmart/liquidity-provider/types"
@@ -26,13 +27,14 @@ type LiquidityProvider interface {
 	GetQuote(types.Quote, uint64, big.Int) *types.Quote
 	Address() string
 	SignHash(hash []byte) ([]byte, error)
-	SignTx(tx *gethTypes.Transaction, chainId *big.Int) (*gethTypes.Transaction, error)
+	SignTx(common.Address, *gethTypes.Transaction) (*gethTypes.Transaction, error)
 }
 
 type LocalProvider struct {
 	account    *accounts.Account
 	ks         *keystore.KeyStore
 	btcAddress string
+	chainId    *big.Int
 }
 
 type ProviderConfig struct {
@@ -40,6 +42,7 @@ type ProviderConfig struct {
 	BtcAddr    string
 	AccountNum int
 	PwdFile    *os.File
+	ChainId    *big.Int
 }
 
 func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
@@ -59,6 +62,7 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 		account:    acc,
 		ks:         ks,
 		btcAddress: config.BtcAddr,
+		chainId:    config.ChainId,
 	}
 	return &lp, nil
 }
@@ -91,8 +95,11 @@ func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
 	return lp.ks.SignHash(*lp.account, crypto.Keccak256(buf.Bytes()))
 }
 
-func (lp *LocalProvider) SignTx(tx *gethTypes.Transaction, chainId *big.Int) (*gethTypes.Transaction, error) {
-	return lp.ks.SignTx(*lp.account, tx, chainId)
+func (lp *LocalProvider) SignTx(address common.Address, tx *gethTypes.Transaction) (*gethTypes.Transaction, error) {
+	if !bytes.Equal(address[:], lp.account.Address[:]) {
+		return nil, fmt.Errorf("provider address %v is incorrect", address.Hash())
+	}
+	return lp.ks.SignTx(*lp.account, tx, lp.chainId)
 }
 
 func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
