@@ -92,7 +92,13 @@ func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteString("\x19Ethereum Signed Message:\n32")
 	buf.Write(hash)
-	return lp.ks.SignHash(*lp.account, crypto.Keccak256(buf.Bytes()))
+
+	signature, err := lp.ks.SignHash(*lp.account, crypto.Keccak256(buf.Bytes()))
+	if err != nil {
+		return nil, err
+	}
+	signature[len(signature)-1] += 27 // v must be 27 or 28
+	return signature, nil
 }
 
 func (lp *LocalProvider) SignTx(address common.Address, tx *gethTypes.Transaction) (*gethTypes.Transaction, error) {
