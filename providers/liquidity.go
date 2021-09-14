@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -31,18 +32,23 @@ type LiquidityProvider interface {
 }
 
 type LocalProvider struct {
-	account    *accounts.Account
-	ks         *keystore.KeyStore
-	btcAddress string
-	chainId    *big.Int
+	account *accounts.Account
+	ks      *keystore.KeyStore
+	cfg     ProviderConfig
 }
 
 type ProviderConfig struct {
-	Keydir     string
-	BtcAddr    string
-	AccountNum int
-	PwdFile    *os.File
-	ChainId    *big.Int
+	Keydir         string
+	BtcAddr        string
+	AccountNum     int
+	PwdFile        string
+	ChainId        *big.Int
+	MaxConf        uint
+	Confirmations  map[int]uint
+	TimeForDeposit uint
+	CallTime       uint
+	CallFee        *big.Int
+	PenaltyFee     *big.Int
 }
 
 func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
@@ -52,35 +58,50 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 	if err := os.MkdirAll(config.Keydir, 0700); err != nil {
 		return nil, err
 	}
+	var f *os.File
+	if config.PwdFile != "" {
+		var err error
+		f, err = os.Open(config.PwdFile)
+		if err != nil {
+			return nil, fmt.Errorf("error opening file: %v", config.PwdFile)
+		}
+		defer f.Close()
+	}
+
 	ks := keystore.NewKeyStore(config.Keydir, keystore.StandardScryptN, keystore.StandardScryptP)
-	acc, err := retreiveOrCreateAccount(ks, config.AccountNum, config.PwdFile)
+	acc, err := retreiveOrCreateAccount(ks, config.AccountNum, f)
 
 	if err != nil {
 		return nil, err
 	}
 	lp := LocalProvider{
-		account:    acc,
-		ks:         ks,
-		btcAddress: config.BtcAddr,
-		chainId:    config.ChainId,
+		account: acc,
+		ks:      ks,
+		cfg:     config,
 	}
 	return &lp, nil
 }
 
 func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice big.Int) *types.Quote {
-	q.LPBTCAddr = lp.btcAddress
+	q.LPBTCAddr = lp.cfg.BtcAddr
 	q.LPRSKAddr = lp.account.Address.String()
-	// TODO better way to compute fee, times, etc.
-	q.Confirmations = 10
-	q.TimeForDeposit = 3600
-	q.CallTime = 3600
-	q.PenaltyFee = *big.NewInt(10)
-	q.Nonce = rand.Int()
-	cost := big.NewInt(0).Mul(&gasPrice, big.NewInt(int64(gas)))
-	fee := cost.Div(cost, big.NewInt(33))
-	finalCost := cost.Add(cost, fee)
-	q.CallFee = *finalCost
 	q.AgreementTimestamp = uint(time.Now().Unix())
+	q.Nonce = rand.Int()
+	q.TimeForDeposit = lp.cfg.TimeForDeposit
+	q.CallTime = lp.cfg.CallTime
+	q.PenaltyFee = *lp.cfg.PenaltyFee
+
+	q.Confirmations = lp.cfg.MaxConf
+	for _, k := range sortedConfirmations(lp.cfg.Confirmations) {
+		v := lp.cfg.Confirmations[k]
+
+		if q.Value.Cmp(big.NewInt(int64(k))) < 0 {
+			q.Confirmations = v
+			break
+		}
+	}
+	callCost := new(big.Int).Mul(&gasPrice, big.NewInt(int64(gas)))
+	q.CallFee.Add(callCost, lp.cfg.CallFee)
 	return &q
 }
 
@@ -105,7 +126,7 @@ func (lp *LocalProvider) SignTx(address common.Address, tx *gethTypes.Transactio
 	if !bytes.Equal(address[:], lp.account.Address[:]) {
 		return nil, fmt.Errorf("provider address %v is incorrect", address.Hash())
 	}
-	return lp.ks.SignTx(*lp.account, tx, lp.chainId)
+	return lp.ks.SignTx(*lp.account, tx, lp.cfg.ChainId)
 }
 
 func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
@@ -210,4 +231,15 @@ func readPasswdReader(r *bufio.Reader) (string, error) {
 		return "", err
 	}
 	return strings.Trim(str, "\n"), nil
+}
+
+func sortedConfirmations(m map[int]uint) []int {
+	keys := make([]int, len(m))
+	i := 0
+	for k := range m {
+		keys[i] = k
+		i++
+	}
+	sort.Ints(keys)
+	return keys
 }
