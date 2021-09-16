@@ -40,8 +40,9 @@ var (
 	testQuotes = [2]getQuoteData{
 		{
 			inQ: types.Quote{
-				Value:   *big.NewInt(3000000),
-				CallFee: *big.NewInt(1000),
+				Value:    *big.NewInt(3000000),
+				CallFee:  *big.NewInt(1000),
+				GasLimit: 50000,
 			},
 			gas:      50000,
 			gasPrice: big.NewInt(10),
@@ -52,8 +53,9 @@ var (
 		},
 		{
 			inQ: types.Quote{
-				Value:   *big.NewInt(100000000),
-				CallFee: *big.NewInt(1000),
+				Value:    *big.NewInt(100000000),
+				CallFee:  *big.NewInt(1000),
+				GasLimit: 50000,
 			},
 			gas:      50000,
 			gasPrice: big.NewInt(10),
