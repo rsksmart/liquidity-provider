@@ -83,9 +83,6 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 }
 
 func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice big.Int) *types.Quote {
-	if gas > uint64(q.GasLimit) {
-		return nil
-	}
 	q.LPBTCAddr = lp.cfg.BtcAddr
 	q.LPRSKAddr = lp.account.Address.String()
 	q.AgreementTimestamp = uint(time.Now().Unix())
