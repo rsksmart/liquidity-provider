@@ -29,12 +29,14 @@ type LiquidityProvider interface {
 	Address() string
 	SignHash(hash []byte) ([]byte, error)
 	SignTx(common.Address, *gethTypes.Transaction) (*gethTypes.Transaction, error)
+	SetLiquidity(value *big.Int)
 }
 
 type LocalProvider struct {
-	account *accounts.Account
-	ks      *keystore.KeyStore
-	cfg     ProviderConfig
+	account   *accounts.Account
+	ks        *keystore.KeyStore
+	cfg       ProviderConfig
+	liquidity *big.Int
 }
 
 type ProviderConfig struct {
@@ -75,9 +77,10 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 		return nil, err
 	}
 	lp := LocalProvider{
-		account: acc,
-		ks:      ks,
-		cfg:     config,
+		account:   acc,
+		ks:        ks,
+		cfg:       config,
+		liquidity: big.NewInt(0),
 	}
 	return &lp, nil
 }
@@ -107,6 +110,10 @@ func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice uint64) *t
 
 func (lp *LocalProvider) Address() string {
 	return lp.account.Address.String()
+}
+
+func (lp *LocalProvider) SetLiquidity(value *big.Int) {
+	lp.liquidity = value
 }
 
 func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
