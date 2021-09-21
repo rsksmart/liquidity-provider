@@ -47,8 +47,8 @@ type ProviderConfig struct {
 	Confirmations  map[int]uint
 	TimeForDeposit uint
 	CallTime       uint
-	CallFee        *big.Int
-	PenaltyFee     *big.Int
+	CallFee        uint64
+	PenaltyFee     uint64
 }
 
 func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
@@ -82,26 +82,26 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 	return &lp, nil
 }
 
-func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice big.Int) *types.Quote {
+func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice uint64) *types.Quote {
 	q.LPBTCAddr = lp.cfg.BtcAddr
 	q.LPRSKAddr = lp.account.Address.String()
 	q.AgreementTimestamp = uint(time.Now().Unix())
-	q.Nonce = rand.Int()
+	q.Nonce = int64(rand.Int())
 	q.TimeForDeposit = lp.cfg.TimeForDeposit
 	q.CallTime = lp.cfg.CallTime
-	q.PenaltyFee = *lp.cfg.PenaltyFee
+	q.PenaltyFee = lp.cfg.PenaltyFee
 
 	q.Confirmations = lp.cfg.MaxConf
 	for _, k := range sortedConfirmations(lp.cfg.Confirmations) {
 		v := lp.cfg.Confirmations[k]
 
-		if q.Value.Cmp(big.NewInt(int64(k))) < 0 {
+		if q.Value < uint64(k) {
 			q.Confirmations = v
 			break
 		}
 	}
-	callCost := new(big.Int).Mul(&gasPrice, big.NewInt(int64(gas)))
-	q.CallFee.Add(callCost, lp.cfg.CallFee)
+	callCost := gasPrice * gas
+	q.CallFee = callCost + lp.cfg.CallFee
 	return &q
 }
 
