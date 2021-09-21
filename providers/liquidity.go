@@ -33,10 +33,10 @@ type LiquidityProvider interface {
 }
 
 type LocalProvider struct {
-	account *accounts.Account
-	ks      *keystore.KeyStore
-	cfg     ProviderConfig
-	balance *big.Int
+	account   *accounts.Account
+	ks        *keystore.KeyStore
+	cfg       ProviderConfig
+	liquidity *big.Int
 }
 
 type ProviderConfig struct {
@@ -77,10 +77,10 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 		return nil, err
 	}
 	lp := LocalProvider{
-		account: acc,
-		ks:      ks,
-		cfg:     config,
-		balance: big.NewInt(0),
+		account:   acc,
+		ks:        ks,
+		cfg:       config,
+		liquidity: big.NewInt(0),
 	}
 	return &lp, nil
 }
@@ -113,7 +113,7 @@ func (lp *LocalProvider) Address() string {
 }
 
 func (lp *LocalProvider) SetLiquidity(value *big.Int) {
-	lp.balance = value
+	lp.liquidity = value
 }
 
 func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {

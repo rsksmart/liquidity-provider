@@ -196,7 +196,7 @@ func testSetLiquidity(t *testing.T) {
 	lp := newLocalProvider(t)
 	value := big.NewInt(20000)
 	lp.SetLiquidity(value)
-	assert.EqualValues(t, value, lp.balance)
+	assert.EqualValues(t, value, lp.liquidity)
 }
 
 func newLocalProvider(t *testing.T) *LocalProvider {
