@@ -43,10 +43,10 @@ type ProviderConfig struct {
 	AccountNum     int
 	PwdFile        string
 	ChainId        *big.Int
-	MaxConf        uint
-	Confirmations  map[int]uint
-	TimeForDeposit uint
-	CallTime       uint
+	MaxConf        uint16
+	Confirmations  map[int]uint16
+	TimeForDeposit uint32
+	CallTime       uint32
 	CallFee        uint64
 	PenaltyFee     uint64
 }
@@ -85,7 +85,7 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice uint64) *types.Quote {
 	q.LPBTCAddr = lp.cfg.BtcAddr
 	q.LPRSKAddr = lp.account.Address.String()
-	q.AgreementTimestamp = uint(time.Now().Unix())
+	q.AgreementTimestamp = uint32(time.Now().Unix())
 	q.Nonce = int64(rand.Int())
 	q.TimeForDeposit = lp.cfg.TimeForDeposit
 	q.CallTime = lp.cfg.CallTime
@@ -233,7 +233,7 @@ func readPasswdReader(r *bufio.Reader) (string, error) {
 	return strings.Trim(str, "\n"), nil
 }
 
-func sortedConfirmations(m map[int]uint) []int {
+func sortedConfirmations(m map[int]uint16) []int {
 	keys := make([]int, len(m))
 	i := 0
 	for k := range m {
