@@ -86,7 +86,7 @@ func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice uint64) *t
 	q.LPBTCAddr = lp.cfg.BtcAddr
 	q.LPRSKAddr = lp.account.Address.String()
 	q.AgreementTimestamp = uint(time.Now().Unix())
-	q.Nonce = rand.Int()
+	q.Nonce = int64(rand.Int())
 	q.TimeForDeposit = lp.cfg.TimeForDeposit
 	q.CallTime = lp.cfg.CallTime
 	q.PenaltyFee = lp.cfg.PenaltyFee
@@ -95,7 +95,7 @@ func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice uint64) *t
 	for _, k := range sortedConfirmations(lp.cfg.Confirmations) {
 		v := lp.cfg.Confirmations[k]
 
-		if q.Value.Cmp(big.NewInt(int64(k))) < 0 {
+		if q.Value < uint64(k) {
 			q.Confirmations = v
 			break
 		}

@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
-	"math/big"
 	"os"
 	"testing"
 
@@ -40,7 +39,7 @@ var (
 	testQuotes = [2]getQuoteData{
 		{
 			inQ: types.Quote{
-				Value:    *big.NewInt(3000000),
+				Value:    3000000,
 				CallFee:  1000,
 				GasLimit: 50000,
 			},
@@ -53,7 +52,7 @@ var (
 		},
 		{
 			inQ: types.Quote{
-				Value:    *big.NewInt(100000000),
+				Value:    100000000,
 				CallFee:  1000,
 				GasLimit: 50000,
 			},
