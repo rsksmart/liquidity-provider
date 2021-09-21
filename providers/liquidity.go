@@ -25,7 +25,7 @@ import (
 )
 
 type LiquidityProvider interface {
-	GetQuote(types.Quote, uint64, big.Int) *types.Quote
+	GetQuote(types.Quote, uint64, uint64) *types.Quote
 	Address() string
 	SignHash(hash []byte) ([]byte, error)
 	SignTx(common.Address, *gethTypes.Transaction) (*gethTypes.Transaction, error)
