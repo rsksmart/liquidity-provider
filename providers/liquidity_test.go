@@ -4,10 +4,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"testing"
 
 	"github.com/rsksmart/liquidity-provider/types"
+	"github.com/stretchr/testify/assert"
 )
 
 type signature struct {
@@ -190,6 +192,13 @@ func testSignHashLocal(t *testing.T) {
 	}
 }
 
+func testSetLiquidity(t *testing.T) {
+	lp := newLocalProvider(t)
+	value := big.NewInt(20000)
+	lp.SetLiquidity(value)
+	assert.EqualValues(t, value, lp.balance)
+}
+
 func newLocalProvider(t *testing.T) *LocalProvider {
 	f := genTmpFile("yes\n1234\n1234\n", t)
 	cfg := ProviderConfig{
@@ -232,5 +241,5 @@ func TestLocalProvider(t *testing.T) {
 	t.Run("sign hash", testSignHashLocal)
 	t.Run("create password", testCreatePassword)
 	t.Run("signature", testSignature)
-
+	t.Run("set liquidity", testSetLiquidity)
 }
