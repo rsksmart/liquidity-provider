@@ -19,7 +19,7 @@ type signature struct {
 type getQuoteData struct {
 	inQ       types.Quote
 	gas       uint
-	gasPrice  *big.Int
+	gasPrice  uint64
 	expectedQ types.Quote
 }
 
@@ -41,33 +41,33 @@ var (
 		{
 			inQ: types.Quote{
 				Value:    *big.NewInt(3000000),
-				CallFee:  *big.NewInt(1000),
+				CallFee:  1000,
 				GasLimit: 50000,
 			},
 			gas:      50000,
-			gasPrice: big.NewInt(10),
+			gasPrice: 10,
 			expectedQ: types.Quote{
 				Confirmations: 6,
-				CallFee:       *big.NewInt(501000),
+				CallFee:       501000,
 			},
 		},
 		{
 			inQ: types.Quote{
 				Value:    *big.NewInt(100000000),
-				CallFee:  *big.NewInt(1000),
+				CallFee:  1000,
 				GasLimit: 50000,
 			},
 			gas:      50000,
-			gasPrice: big.NewInt(10),
+			gasPrice: 10,
 			expectedQ: types.Quote{
 				Confirmations: 60,
-				CallFee:       *big.NewInt(501000),
+				CallFee:       501000,
 			},
 		},
 	}
 )
 
-func TestSignature(t *testing.T) {
+func testSignature(t *testing.T) {
 	f := genTmpFile("1234\n1234\n", t)
 	defer f.Close()
 
@@ -95,7 +95,7 @@ func TestSignature(t *testing.T) {
 	}
 }
 
-func TestCreatePassword(t *testing.T) {
+func testCreatePassword(t *testing.T) {
 	f1 := genTmpFile("yes\n1234\n1234\n", t)
 	defer f1.Close()
 	pwd, err := createPasswd(f1)
@@ -119,12 +119,6 @@ func TestCreatePassword(t *testing.T) {
 	if err == nil {
 		t.Fatal("did not fail when yes is not typed")
 	}
-}
-
-func TestLocalProvider(t *testing.T) {
-	t.Run("new", testNewLocal)
-	t.Run("get quote", testGetQuoteLocal)
-	t.Run("sign hash", testSignHashLocal)
 }
 
 func testNewLocal(t *testing.T) {
@@ -153,7 +147,7 @@ func testGetQuoteLocal(t *testing.T) {
 	}
 
 	for _, q := range testQuotes {
-		nq := lp.GetQuote(q.inQ, uint64(q.gas), *q.gasPrice)
+		nq := lp.GetQuote(q.inQ, uint64(q.gas), q.gasPrice)
 
 		if nq == nil {
 			t.Fatal("empty quote")
@@ -164,10 +158,10 @@ func testGetQuoteLocal(t *testing.T) {
 		if nq.CallTime != cfg.CallTime {
 			t.Fatalf("invalid call time: %v", nq.CallTime)
 		}
-		if nq.CallFee.Cmp(&q.expectedQ.CallFee) != 0 {
+		if nq.CallFee != q.expectedQ.CallFee {
 			t.Fatal("invalid call fee")
 		}
-		if nq.PenaltyFee.Cmp(cfg.PenaltyFee) != 0 {
+		if nq.PenaltyFee != cfg.PenaltyFee {
 			t.Fatal("invalid penalty fee")
 		}
 		if nq.Confirmations != q.expectedQ.Confirmations {
@@ -231,4 +225,13 @@ func genTmpFile(s string, t *testing.T) *os.File {
 		t.Fatal(err)
 	}
 	return f
+}
+
+func TestLocalProvider(t *testing.T) {
+	t.Run("new", testNewLocal)
+	t.Run("get quote", testGetQuoteLocal)
+	t.Run("sign hash", testSignHashLocal)
+	t.Run("create password", testCreatePassword)
+	t.Run("signature", testSignature)
+
 }

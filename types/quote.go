@@ -1,8 +1,6 @@
 package types
 
-import (
-	"math/big"
-)
+import "math/big"
 
 type Quote struct {
 	FedBTCAddr         string  `json:"fedBTCAddr" db:"fed_addr"`
@@ -11,8 +9,8 @@ type Quote struct {
 	BTCRefundAddr      string  `json:"btcRefundAddr" db:"btc_refund_addr"`
 	RSKRefundAddr      string  `json:"rskRefundAddr" db:"rsk_refund_addr"`
 	LPBTCAddr          string  `json:"lpBTCAddr" db:"lp_btc_addr"`
-	CallFee            big.Int `json:"callFee" db:"call_fee"`
-	PenaltyFee         big.Int `json:"penaltyFee" db:"penalty_fee"`
+	CallFee            uint64  `json:"callFee" db:"call_fee"`
+	PenaltyFee         uint64  `json:"penaltyFee" db:"penalty_fee"`
 	ContractAddr       string  `json:"contractAddr" db:"contract_addr"`
 	Data               string  `json:"data" db:"data"`
 	GasLimit           uint    `json:"gasLimit" db:"gas_limit"`
@@ -22,4 +20,5 @@ type Quote struct {
 	TimeForDeposit     uint    `json:"timeForDeposit" db:"time_for_deposit"`
 	CallTime           uint    `json:"callTime" db:"call_time"`
 	Confirmations      uint    `json:"confirmations" db:"confirmations"`
+	CallOnRegister     bool    `json:"callOnRegister" db:"call_on_register"`
 }
