@@ -84,9 +84,11 @@ func testSignature(t *testing.T) {
 	}
 
 	for _, sign := range expectedSign {
+		reqLiq := big.NewInt(200)
+		p.SetLiquidity(reqLiq)
 		h, _ := hex.DecodeString(sign.h)
 
-		b, err := p.SignHash(h)
+		b, err := p.SignQuote(h, reqLiq)
 		if err != nil {
 			t.Errorf("error signing hash: %v", err)
 		}
@@ -180,15 +182,28 @@ func testGetQuoteLocal(t *testing.T) {
 	}
 }
 
-func testSignHashLocal(t *testing.T) {
+func testSignQuoteLocal(t *testing.T) {
 	lp := newLocalProvider(t)
-	b, err := lp.SignHash([]byte("12345678901234567890123456789012"))
-
+	lp.SetLiquidity(big.NewInt(220))
+	reqLiq := big.NewInt(200)
+	b, err := lp.SignQuote([]byte("12345678901234567890123456789012"), reqLiq)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(b) == 0 {
 		t.Fatal("empty signature")
+	}
+
+	assert.EqualValues(t, big.NewInt(20), lp.liquidity)
+}
+
+func TestInsufficientFunds(t *testing.T) {
+	lp := newLocalProvider(t)
+	lp.SetLiquidity(big.NewInt(100))
+	reqLiq := big.NewInt(101)
+	_, err := lp.SignQuote([]byte("12345678901234567890123456789012"), reqLiq)
+	if err != nil {
+		assert.Errorf(t, err, "not enough liquidity. required: %v")
 	}
 }
 
@@ -238,7 +253,7 @@ func genTmpFile(s string, t *testing.T) *os.File {
 func TestLocalProvider(t *testing.T) {
 	t.Run("new", testNewLocal)
 	t.Run("get quote", testGetQuoteLocal)
-	t.Run("sign hash", testSignHashLocal)
+	t.Run("sign hash", testSignQuoteLocal)
 	t.Run("create password", testCreatePassword)
 	t.Run("signature", testSignature)
 	t.Run("set liquidity", testSetLiquidity)

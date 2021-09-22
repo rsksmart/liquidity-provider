@@ -27,7 +27,7 @@ import (
 type LiquidityProvider interface {
 	GetQuote(types.Quote, uint64, uint64) *types.Quote
 	Address() string
-	SignHash(hash []byte) ([]byte, error)
+	SignQuote(hash []byte, reqLiq *big.Int) ([]byte, error)
 	SignTx(common.Address, *gethTypes.Transaction) (*gethTypes.Transaction, error)
 	SetLiquidity(value *big.Int)
 }
@@ -116,7 +116,11 @@ func (lp *LocalProvider) SetLiquidity(value *big.Int) {
 	lp.liquidity = value
 }
 
-func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
+func (lp *LocalProvider) SignQuote(hash []byte, reqLiq *big.Int) ([]byte, error) {
+	if lp.liquidity.Int64()-reqLiq.Int64() < 0 {
+		return nil, fmt.Errorf("not enough liquidity. required: %v", reqLiq)
+	}
+	lp.liquidity.Sub(lp.liquidity, reqLiq)
 	var buf bytes.Buffer
 	buf.WriteString("\x19Ethereum Signed Message:\n32")
 	buf.Write(hash)
