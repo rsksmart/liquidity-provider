@@ -207,6 +207,32 @@ func testInsufficientFunds(t *testing.T) {
 	}
 }
 
+func testLiquidityFluctuation(t *testing.T) {
+	quoteHash := "12345678901234567890123456789012"
+	lp := newLocalProvider(t)
+	initialLiq := big.NewInt(100)
+	lp.SetLiquidity(initialLiq)
+	reqLiq := big.NewInt(90)
+	expectedLiq := initialLiq.Int64() - reqLiq.Int64()
+	qb, err := hex.DecodeString(quoteHash)
+	if err != nil {
+		t.Fail()
+	}
+	_, err = lp.SignQuote(qb, reqLiq)
+	if err != nil {
+		t.Fail()
+	}
+
+	assert.EqualValues(t, expectedLiq, lp.liquidity.Int64())
+
+	err = lp.RefundLiquidity(quoteHash, reqLiq)
+	if err != nil {
+		t.Fail()
+	}
+
+	assert.EqualValues(t, initialLiq, lp.liquidity)
+}
+
 func testSetLiquidity(t *testing.T) {
 	lp := newLocalProvider(t)
 	value := big.NewInt(20000)
@@ -258,4 +284,5 @@ func TestLocalProvider(t *testing.T) {
 	t.Run("signature", testSignature)
 	t.Run("set liquidity", testSetLiquidity)
 	t.Run("sign quote with insufficient funds", testInsufficientFunds)
+	t.Run("liquidity fluctuation", testLiquidityFluctuation)
 }
