@@ -197,7 +197,7 @@ func testSignQuoteLocal(t *testing.T) {
 	assert.EqualValues(t, big.NewInt(20), lp.liquidity)
 }
 
-func TestInsufficientFunds(t *testing.T) {
+func testInsufficientFunds(t *testing.T) {
 	lp := newLocalProvider(t)
 	lp.SetLiquidity(big.NewInt(100))
 	reqLiq := big.NewInt(101)
@@ -253,8 +253,9 @@ func genTmpFile(s string, t *testing.T) *os.File {
 func TestLocalProvider(t *testing.T) {
 	t.Run("new", testNewLocal)
 	t.Run("get quote", testGetQuoteLocal)
-	t.Run("sign hash", testSignQuoteLocal)
+	t.Run("sign quote", testSignQuoteLocal)
 	t.Run("create password", testCreatePassword)
 	t.Run("signature", testSignature)
 	t.Run("set liquidity", testSetLiquidity)
+	t.Run("sign quote with insufficient funds", testInsufficientFunds)
 }
