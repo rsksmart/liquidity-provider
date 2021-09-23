@@ -31,7 +31,7 @@ type LiquidityProvider interface {
 	SignQuote(hash []byte, reqLiq *big.Int) ([]byte, error)
 	SignTx(common.Address, *gethTypes.Transaction) (*gethTypes.Transaction, error)
 	SetLiquidity(value *big.Int)
-	RefundLiquidity(hash string, value *big.Int) error
+	RefundLiquidity(hash []byte, value *big.Int) error
 }
 
 type LocalProvider struct {
@@ -120,13 +120,14 @@ func (lp *LocalProvider) SetLiquidity(value *big.Int) {
 	lp.liquidity = value
 }
 
-func (lp *LocalProvider) RefundLiquidity(hash string, value *big.Int) error {
-	val, ok := lp.retainedQuotes[hash]
+func (lp *LocalProvider) RefundLiquidity(hash []byte, value *big.Int) error {
+	h := hex.EncodeToString(hash)
+	val, ok := lp.retainedQuotes[h]
 	if !ok || val.Int64() != value.Int64() {
 		return fmt.Errorf("invalid quote or value. hash: %v. value: %v", hash, value)
 	}
 	lp.liquidity.Add(lp.liquidity, &val)
-	delete(lp.retainedQuotes, hash)
+	delete(lp.retainedQuotes, h)
 	return nil
 }
 
