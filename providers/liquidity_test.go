@@ -225,7 +225,7 @@ func testLiquidityFluctuation(t *testing.T) {
 
 	assert.EqualValues(t, expectedLiq, lp.liquidity.Int64())
 
-	err = lp.RefundLiquidity(qb, reqLiq)
+	err = lp.RefundLiquidity(qb)
 	if err != nil {
 		t.Fail()
 	}
