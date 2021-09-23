@@ -136,8 +136,11 @@ func (lp *LocalProvider) SignQuote(hash []byte, reqLiq *big.Int) ([]byte, error)
 		return nil, fmt.Errorf("not enough liquidity. required: %v", reqLiq)
 	}
 	quoteHash := hex.EncodeToString(hash)
-	lp.liquidity.Sub(lp.liquidity, reqLiq)
-	lp.retainedQuotes[quoteHash] = *reqLiq
+	_, ok := lp.retainedQuotes[quoteHash]
+	if !ok {
+		lp.liquidity.Sub(lp.liquidity, reqLiq)
+		lp.retainedQuotes[quoteHash] = *reqLiq
+	}
 
 	var buf bytes.Buffer
 	buf.WriteString("\x19Ethereum Signed Message:\n32")
