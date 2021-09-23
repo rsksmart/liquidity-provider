@@ -2,6 +2,7 @@ package providers
 
 import (
 	"bufio"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -27,16 +28,18 @@ import (
 type LiquidityProvider interface {
 	GetQuote(types.Quote, uint64, uint64) *types.Quote
 	Address() string
-	SignHash(hash []byte) ([]byte, error)
+	SignQuote(hash []byte, reqLiq *big.Int) ([]byte, error)
 	SignTx(common.Address, *gethTypes.Transaction) (*gethTypes.Transaction, error)
 	SetLiquidity(value *big.Int)
+	RefundLiquidity(hash []byte) error
 }
 
 type LocalProvider struct {
-	account   *accounts.Account
-	ks        *keystore.KeyStore
-	cfg       ProviderConfig
-	liquidity *big.Int
+	account        *accounts.Account
+	ks             *keystore.KeyStore
+	cfg            ProviderConfig
+	liquidity      *big.Int
+	retainedQuotes map[string]big.Int
 }
 
 type ProviderConfig struct {
@@ -77,10 +80,11 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 		return nil, err
 	}
 	lp := LocalProvider{
-		account:   acc,
-		ks:        ks,
-		cfg:       config,
-		liquidity: big.NewInt(0),
+		account:        acc,
+		ks:             ks,
+		cfg:            config,
+		liquidity:      big.NewInt(0),
+		retainedQuotes: make(map[string]big.Int),
 	}
 	return &lp, nil
 }
@@ -116,7 +120,25 @@ func (lp *LocalProvider) SetLiquidity(value *big.Int) {
 	lp.liquidity = value
 }
 
-func (lp *LocalProvider) SignHash(hash []byte) ([]byte, error) {
+func (lp *LocalProvider) RefundLiquidity(hash []byte) error {
+	h := hex.EncodeToString(hash)
+	val, ok := lp.retainedQuotes[h]
+	if !ok {
+		return fmt.Errorf("invalid quote. hash: %v", hash)
+	}
+	lp.liquidity.Add(lp.liquidity, &val)
+	delete(lp.retainedQuotes, h)
+	return nil
+}
+
+func (lp *LocalProvider) SignQuote(hash []byte, reqLiq *big.Int) ([]byte, error) {
+	if lp.liquidity.Int64()-reqLiq.Int64() < 0 {
+		return nil, fmt.Errorf("not enough liquidity. required: %v", reqLiq)
+	}
+	quoteHash := hex.EncodeToString(hash)
+	lp.liquidity.Sub(lp.liquidity, reqLiq)
+	lp.retainedQuotes[quoteHash] = *reqLiq
+
 	var buf bytes.Buffer
 	buf.WriteString("\x19Ethereum Signed Message:\n32")
 	buf.Write(hash)

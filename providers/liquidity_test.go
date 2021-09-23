@@ -84,9 +84,11 @@ func testSignature(t *testing.T) {
 	}
 
 	for _, sign := range expectedSign {
+		reqLiq := big.NewInt(200)
+		p.SetLiquidity(reqLiq)
 		h, _ := hex.DecodeString(sign.h)
 
-		b, err := p.SignHash(h)
+		b, err := p.SignQuote(h, reqLiq)
 		if err != nil {
 			t.Errorf("error signing hash: %v", err)
 		}
@@ -180,16 +182,55 @@ func testGetQuoteLocal(t *testing.T) {
 	}
 }
 
-func testSignHashLocal(t *testing.T) {
+func testSignQuoteLocal(t *testing.T) {
 	lp := newLocalProvider(t)
-	b, err := lp.SignHash([]byte("12345678901234567890123456789012"))
-
+	lp.SetLiquidity(big.NewInt(220))
+	reqLiq := big.NewInt(200)
+	b, err := lp.SignQuote([]byte("12345678901234567890123456789012"), reqLiq)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(b) == 0 {
 		t.Fatal("empty signature")
 	}
+
+	assert.EqualValues(t, big.NewInt(20), lp.liquidity)
+}
+
+func testInsufficientFunds(t *testing.T) {
+	lp := newLocalProvider(t)
+	lp.SetLiquidity(big.NewInt(100))
+	reqLiq := big.NewInt(101)
+	_, err := lp.SignQuote([]byte("12345678901234567890123456789012"), reqLiq)
+	if err != nil {
+		assert.Errorf(t, err, "not enough liquidity. required: %v")
+	}
+}
+
+func testLiquidityFluctuation(t *testing.T) {
+	quoteHash := "12345678901234567890123456789012"
+	lp := newLocalProvider(t)
+	initialLiq := big.NewInt(100)
+	lp.SetLiquidity(initialLiq)
+	reqLiq := big.NewInt(90)
+	expectedLiq := initialLiq.Int64() - reqLiq.Int64()
+	qb, err := hex.DecodeString(quoteHash)
+	if err != nil {
+		t.Fail()
+	}
+	_, err = lp.SignQuote(qb, reqLiq)
+	if err != nil {
+		t.Fail()
+	}
+
+	assert.EqualValues(t, expectedLiq, lp.liquidity.Int64())
+
+	err = lp.RefundLiquidity(qb)
+	if err != nil {
+		t.Fail()
+	}
+
+	assert.EqualValues(t, initialLiq, lp.liquidity)
 }
 
 func testSetLiquidity(t *testing.T) {
@@ -238,8 +279,10 @@ func genTmpFile(s string, t *testing.T) *os.File {
 func TestLocalProvider(t *testing.T) {
 	t.Run("new", testNewLocal)
 	t.Run("get quote", testGetQuoteLocal)
-	t.Run("sign hash", testSignHashLocal)
+	t.Run("sign quote", testSignQuoteLocal)
 	t.Run("create password", testCreatePassword)
 	t.Run("signature", testSignature)
 	t.Run("set liquidity", testSetLiquidity)
+	t.Run("sign quote with insufficient funds", testInsufficientFunds)
+	t.Run("liquidity fluctuation", testLiquidityFluctuation)
 }
