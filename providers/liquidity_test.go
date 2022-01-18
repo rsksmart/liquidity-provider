@@ -78,7 +78,8 @@ func testSignature(t *testing.T) {
 		PwdFile:    f.Name(),
 	}
 
-	p, err := NewLocalProvider(cfg)
+	repository := NewInMemRetainedQuotesRepository()
+	p, err := NewLocalProvider(cfg, repository)
 	if err != nil {
 		t.Error(err)
 	}
@@ -88,7 +89,7 @@ func testSignature(t *testing.T) {
 		p.SetLiquidity(reqLiq)
 		h, _ := hex.DecodeString(sign.h)
 
-		b, err := p.SignQuote(h, reqLiq)
+		b, err := p.SignQuote(h, "abc", reqLiq)
 		if err != nil {
 			t.Errorf("error signing hash: %v", err)
 		}
@@ -144,7 +145,8 @@ func testGetQuoteLocal(t *testing.T) {
 	dec.Decode(&cfg)
 	cfg.PwdFile = genTmpFile("1234\n1234\n", t).Name()
 
-	lp, err := NewLocalProvider(cfg)
+	repository := NewInMemRetainedQuotesRepository()
+	lp, err := NewLocalProvider(cfg, repository)
 	if err != nil {
 		t.Fatal("error creating local provider: ", err)
 	}
@@ -186,7 +188,7 @@ func testSignQuoteLocal(t *testing.T) {
 	lp := newLocalProvider(t)
 	lp.SetLiquidity(big.NewInt(220))
 	reqLiq := big.NewInt(200)
-	b, err := lp.SignQuote([]byte("12345678901234567890123456789012"), reqLiq)
+	b, err := lp.SignQuote([]byte("12345678901234567890123456789012"), "abc", reqLiq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +203,7 @@ func testInsufficientFunds(t *testing.T) {
 	lp := newLocalProvider(t)
 	lp.SetLiquidity(big.NewInt(100))
 	reqLiq := big.NewInt(101)
-	_, err := lp.SignQuote([]byte("12345678901234567890123456789012"), reqLiq)
+	_, err := lp.SignQuote([]byte("12345678901234567890123456789012"), "abc", reqLiq)
 	if err != nil {
 		assert.Errorf(t, err, "not enough liquidity. required: %v")
 	}
@@ -218,7 +220,7 @@ func testLiquidityFluctuation(t *testing.T) {
 	if err != nil {
 		t.Fail()
 	}
-	_, err = lp.SignQuote(qb, reqLiq)
+	_, err = lp.SignQuote(qb, "abc", reqLiq)
 	if err != nil {
 		t.Fail()
 	}
@@ -244,14 +246,14 @@ func testLiquidityAbnormalFluctuation(t *testing.T) {
 	if err != nil {
 		t.Fail()
 	}
-	_, err = lp.SignQuote(qb, reqLiq)
+	_, err = lp.SignQuote(qb, "abc", reqLiq)
 	if err != nil {
 		t.Fail()
 	}
 
 	assert.EqualValues(t, expectedLiq, lp.liquidity.Int64())
 
-	_, err = lp.SignQuote(qb, reqLiq)
+	_, err = lp.SignQuote(qb, "abc", reqLiq)
 	if err != nil {
 		t.Fail()
 	}
@@ -283,7 +285,8 @@ func newLocalProvider(t *testing.T) *LocalProvider {
 	}
 	defer f.Close()
 
-	lp, err := NewLocalProvider(cfg)
+	repository := NewInMemRetainedQuotesRepository()
+	lp, err := NewLocalProvider(cfg, repository)
 	if err != nil {
 		t.Fatal("error creating local provider: ", err)
 	}
