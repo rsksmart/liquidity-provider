@@ -28,18 +28,24 @@ import (
 type LiquidityProvider interface {
 	GetQuote(types.Quote, uint64, uint64) *types.Quote
 	Address() string
-	SignQuote(hash []byte, reqLiq *big.Int) ([]byte, error)
+	SignQuote(hash []byte, depositAddr string, reqLiq *big.Int) ([]byte, error)
 	SignTx(common.Address, *gethTypes.Transaction) (*gethTypes.Transaction, error)
 	SetLiquidity(value *big.Int)
 	RefundLiquidity(hash []byte) error
 }
 
+type RetainedQuotesRepository interface {
+	RetainQuote(*types.RetainedQuote) error
+	GetRetainedQuote(hash string) (*types.RetainedQuote, error) // returns nil, if not found
+	DeleteRetainedQuote(hash string) error
+}
+
 type LocalProvider struct {
-	account        *accounts.Account
-	ks             *keystore.KeyStore
-	cfg            ProviderConfig
-	liquidity      *big.Int
-	retainedQuotes map[string]big.Int
+	account    *accounts.Account
+	ks         *keystore.KeyStore
+	cfg        ProviderConfig
+	liquidity  *big.Int
+	repository RetainedQuotesRepository
 }
 
 type ProviderConfig struct {
@@ -56,7 +62,11 @@ type ProviderConfig struct {
 	PenaltyFee     uint64
 }
 
-func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
+type InMemRetainedQuotesRepository struct {
+	retainedQuotes map[string]*types.RetainedQuote
+}
+
+func NewLocalProvider(config ProviderConfig, repository RetainedQuotesRepository) (*LocalProvider, error) {
 	if config.Keydir == "" {
 		config.Keydir = "keystore"
 	}
@@ -80,11 +90,11 @@ func NewLocalProvider(config ProviderConfig) (*LocalProvider, error) {
 		return nil, err
 	}
 	lp := LocalProvider{
-		account:        acc,
-		ks:             ks,
-		cfg:            config,
-		liquidity:      big.NewInt(0),
-		retainedQuotes: make(map[string]big.Int),
+		account:    acc,
+		ks:         ks,
+		cfg:        config,
+		liquidity:  big.NewInt(0),
+		repository: repository,
 	}
 	return &lp, nil
 }
@@ -122,36 +132,59 @@ func (lp *LocalProvider) SetLiquidity(value *big.Int) {
 
 func (lp *LocalProvider) RefundLiquidity(hash []byte) error {
 	h := hex.EncodeToString(hash)
-	val, ok := lp.retainedQuotes[h]
-	if !ok {
-		return fmt.Errorf("invalid quote. hash: %v", hash)
+	rq, err := lp.repository.GetRetainedQuote(h)
+	if err != nil {
+		return err
 	}
-	lp.liquidity.Add(lp.liquidity, &val)
-	delete(lp.retainedQuotes, h)
+	if rq == nil {
+		return fmt.Errorf("retained quote not found: %s", h)
+	}
+	lp.liquidity.Add(lp.liquidity, big.NewInt(int64(rq.ReqLiq)))
+	err = lp.repository.DeleteRetainedQuote(h)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
-func (lp *LocalProvider) SignQuote(hash []byte, reqLiq *big.Int) ([]byte, error) {
+func (lp *LocalProvider) SignQuote(hash []byte, depositAddr string, reqLiq *big.Int) ([]byte, error) {
 	if lp.liquidity.Int64()-reqLiq.Int64() < 0 {
 		return nil, fmt.Errorf("not enough liquidity. required: %v", reqLiq)
 	}
 	quoteHash := hex.EncodeToString(hash)
-	_, ok := lp.retainedQuotes[quoteHash]
-	if !ok {
-		lp.liquidity.Sub(lp.liquidity, reqLiq)
-		lp.retainedQuotes[quoteHash] = *reqLiq
+	rq, err := lp.repository.GetRetainedQuote(quoteHash)
+	if err != nil {
+		return nil, err
 	}
 
 	var buf bytes.Buffer
 	buf.WriteString("\x19Ethereum Signed Message:\n32")
 	buf.Write(hash)
 
-	signature, err := lp.ks.SignHash(*lp.account, crypto.Keccak256(buf.Bytes()))
+	signB, err := lp.ks.SignHash(*lp.account, crypto.Keccak256(buf.Bytes()))
 	if err != nil {
 		return nil, err
 	}
-	signature[len(signature)-1] += 27 // v must be 27 or 28
-	return signature, nil
+	signB[len(signB)-1] += 27 // v must be 27 or 28
+
+	if rq == nil {
+		signature := hex.EncodeToString(signB)
+		rq := types.RetainedQuote{
+			QuoteHash: quoteHash,
+			DepositAddr: depositAddr,
+			Signature: signature,
+			CalledForUser: false,
+			ReqLiq: reqLiq.Uint64(),
+		}
+		err = lp.repository.RetainQuote(&rq)
+		if err != nil {
+			return nil, err
+		}
+
+		lp.liquidity.Sub(lp.liquidity, reqLiq)
+	}
+
+	return signB, nil
 }
 
 func (lp *LocalProvider) SignTx(address common.Address, tx *gethTypes.Transaction) (*gethTypes.Transaction, error) {
@@ -274,4 +307,32 @@ func sortedConfirmations(m map[int]uint16) []int {
 	}
 	sort.Ints(keys)
 	return keys
+}
+
+func NewInMemRetainedQuotesRepository() *InMemRetainedQuotesRepository {
+	return &InMemRetainedQuotesRepository{
+		retainedQuotes: make(map[string]*types.RetainedQuote),
+	}
+}
+
+func (s InMemRetainedQuotesRepository) RetainQuote(quote *types.RetainedQuote) error {
+	s.retainedQuotes[quote.QuoteHash] = quote
+	return nil
+}
+
+func (s InMemRetainedQuotesRepository) GetRetainedQuote(hash string) (*types.RetainedQuote, error) {
+	q, ok := s.retainedQuotes[hash]
+	if !ok {
+		return nil, nil
+	}
+	return q, nil
+}
+
+func (s InMemRetainedQuotesRepository) DeleteRetainedQuote(hash string) error {
+	_, ok := s.retainedQuotes[hash]
+	if !ok {
+		return fmt.Errorf("quote not found. hash: %v", hash)
+	}
+	delete(s.retainedQuotes, hash)
+	return nil
 }
