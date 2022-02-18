@@ -37,7 +37,6 @@ type LiquidityProvider interface {
 type RetainedQuotesRepository interface {
 	RetainQuote(*types.RetainedQuote) error
 	GetRetainedQuote(hash string) (*types.RetainedQuote, error) // returns nil, if not found
-	DeleteRetainedQuote(hash string) error
 }
 
 type LocalProvider struct {
@@ -140,10 +139,6 @@ func (lp *LocalProvider) RefundLiquidity(hash []byte) error {
 		return fmt.Errorf("retained quote not found: %s", h)
 	}
 	lp.liquidity.Add(lp.liquidity, big.NewInt(int64(rq.ReqLiq)))
-	err = lp.repository.DeleteRetainedQuote(h)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -170,11 +165,11 @@ func (lp *LocalProvider) SignQuote(hash []byte, depositAddr string, reqLiq *big.
 	if rq == nil {
 		signature := hex.EncodeToString(signB)
 		rq := types.RetainedQuote{
-			QuoteHash: quoteHash,
+			QuoteHash:   quoteHash,
 			DepositAddr: depositAddr,
-			Signature: signature,
-			CalledForUser: false,
-			ReqLiq: reqLiq.Uint64(),
+			Signature:   signature,
+			ReqLiq:      reqLiq.Uint64(),
+			State:       types.RQStateWaitingForDeposit,
 		}
 		err = lp.repository.RetainQuote(&rq)
 		if err != nil {
@@ -326,13 +321,4 @@ func (s InMemRetainedQuotesRepository) GetRetainedQuote(hash string) (*types.Ret
 		return nil, nil
 	}
 	return q, nil
-}
-
-func (s InMemRetainedQuotesRepository) DeleteRetainedQuote(hash string) error {
-	_, ok := s.retainedQuotes[hash]
-	if !ok {
-		return fmt.Errorf("quote not found. hash: %v", hash)
-	}
-	delete(s.retainedQuotes, hash)
-	return nil
 }
