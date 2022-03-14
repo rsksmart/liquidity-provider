@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"math/rand"
 	"os"
@@ -83,7 +84,7 @@ func NewLocalProvider(config ProviderConfig, repository RetainedQuotesRepository
 	}
 
 	ks := keystore.NewKeyStore(config.Keydir, keystore.StandardScryptN, keystore.StandardScryptP)
-	acc, err := retreiveOrCreateAccount(ks, config.AccountNum, f)
+	acc, err := retrieveOrCreateAccount(ks, config.AccountNum, f)
 
 	if err != nil {
 		return nil, err
@@ -116,8 +117,8 @@ func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice uint64) *t
 			break
 		}
 	}
-	callCost := gasPrice * gas
-	q.CallFee = callCost + lp.cfg.CallFee
+	callCostInSatoshi := weiToSatoshi(gasPrice * gas)
+	q.CallFee = uint64(math.Ceil(callCostInSatoshi)) + lp.cfg.CallFee
 	return &q
 }
 
@@ -189,7 +190,11 @@ func (lp *LocalProvider) SignTx(address common.Address, tx *gethTypes.Transactio
 	return lp.ks.SignTx(*lp.account, tx, lp.cfg.ChainId)
 }
 
-func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
+func weiToSatoshi(wei uint64) float64 {
+	return float64(wei) / math.Pow10(10)
+}
+
+func retrieveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
 	if cap(ks.Accounts()) == 0 {
 		log.Info("no RSK account found")
 		acc, err := createAccount(ks, in)

@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
+	"math"
 	"math/big"
 	"os"
 	"testing"
@@ -38,6 +39,8 @@ var (
 		},
 	}
 
+	lpFee = 1000
+
 	testQuotes = [2]getQuoteData{
 		{
 			inQ: types.Quote{
@@ -49,7 +52,7 @@ var (
 			gasPrice: 10,
 			expectedQ: types.Quote{
 				Confirmations: 6,
-				CallFee:       501000,
+				CallFee:       uint64(math.Ceil(10*50000/math.Pow10(10)) + float64(lpFee)),
 			},
 		},
 		{
@@ -58,11 +61,11 @@ var (
 				CallFee:  1000,
 				GasLimit: 50000,
 			},
-			gas:      50000,
-			gasPrice: 10,
+			gas:      510000000,
+			gasPrice: 100,
 			expectedQ: types.Quote{
 				Confirmations: 60,
-				CallFee:       501000,
+				CallFee:       uint64(math.Ceil(100*510000000/math.Pow10(10)) + float64(lpFee)),
 			},
 		},
 	}
