@@ -18,10 +18,10 @@ type signature struct {
 }
 
 type getQuoteData struct {
-	inQ       types.Quote
-	gas       uint
-	gasPrice  uint64
-	expectedQ types.Quote
+	inQ       *types.Quote
+	gas       uint64
+	gasPrice  *types.Wei
+	expectedQ *types.Quote
 }
 
 var (
@@ -40,33 +40,82 @@ var (
 
 	testQuotes = [2]getQuoteData{
 		{
-			inQ: types.Quote{
-				Value:    3000000,
-				CallFee:  1000,
+			inQ: &types.Quote{
+				Value:    types.NewWei(3000000),
+				CallFee:  types.NewWei(1000),
 				GasLimit: 50000,
 			},
 			gas:      50000,
-			gasPrice: 10,
-			expectedQ: types.Quote{
+			gasPrice: types.NewWei(10),
+			expectedQ: &types.Quote{
 				Confirmations: 6,
-				CallFee:       501000,
+				CallFee:       types.NewWei(501000),
 			},
 		},
 		{
-			inQ: types.Quote{
-				Value:    100000000,
-				CallFee:  1000,
+			inQ: &types.Quote{
+				Value:    types.NewWei(100000000),
+				CallFee:  types.NewWei(1000),
 				GasLimit: 50000,
 			},
 			gas:      50000,
-			gasPrice: 10,
-			expectedQ: types.Quote{
+			gasPrice: types.NewWei(10),
+			expectedQ: &types.Quote{
 				Confirmations: 60,
-				CallFee:       501000,
+				CallFee:       types.NewWei(501000),
 			},
 		},
 	}
 )
+
+type InMemLocalProviderRepository struct {
+	retainedQuotes map[string]*types.RetainedQuote
+	liquidity      *types.Wei
+}
+
+func NewInMemRetainedQuotesRepository() *InMemLocalProviderRepository {
+	return &InMemLocalProviderRepository{
+		retainedQuotes: make(map[string]*types.RetainedQuote),
+		liquidity:      types.NewWei(0),
+	}
+}
+
+func (r *InMemLocalProviderRepository) RetainQuote(quote *types.RetainedQuote) error {
+	r.retainedQuotes[quote.QuoteHash] = quote
+	return nil
+}
+
+func (r *InMemLocalProviderRepository) HasRetainedQuote(hash string) (bool, error) {
+	_, ok := r.retainedQuotes[hash]
+	return ok, nil
+}
+
+func (r *InMemLocalProviderRepository) GetLiquidity() *types.Wei {
+	liq := r.liquidity.Copy()
+
+	for _, rq := range r.retainedQuotes {
+		if rq.State == types.RQStateWaitingForDeposit {
+			liq.Sub(liq, rq.ReqLiq)
+		}
+	}
+
+	return liq
+}
+
+func (r *InMemLocalProviderRepository) HasLiquidity(_ LiquidityProvider, wei *types.Wei) (bool, error) {
+	return r.GetLiquidity().Cmp(wei) >= 0, nil
+}
+
+func (r *InMemLocalProviderRepository) SetLiquidity(liq *types.Wei) {
+	r.liquidity = liq.Copy()
+}
+
+func (r *InMemLocalProviderRepository) SetRetainedQuoteState(hash string, state types.RQState) {
+	q, ok := r.retainedQuotes[hash]
+	if ok {
+		q.State = state
+	}
+}
 
 func testSignature(t *testing.T) {
 	f := genTmpFile("1234\n1234\n", t)
@@ -85,8 +134,8 @@ func testSignature(t *testing.T) {
 	}
 
 	for _, sign := range expectedSign {
-		reqLiq := big.NewInt(200)
-		p.SetLiquidity(reqLiq)
+		reqLiq := types.NewWei(200)
+		repository.SetLiquidity(reqLiq)
 		h, _ := hex.DecodeString(sign.h)
 
 		b, err := p.SignQuote(h, "abc", reqLiq)
@@ -96,6 +145,7 @@ func testSignature(t *testing.T) {
 		if hex.EncodeToString(b) != sign.s {
 			t.Errorf("wrong signature. got: %x \n expected: %v", b, sign.s)
 		}
+		repository.SetRetainedQuoteState(sign.h, types.RQStateCallForUserSucceeded)
 	}
 }
 
@@ -126,7 +176,8 @@ func testCreatePassword(t *testing.T) {
 }
 
 func testNewLocal(t *testing.T) {
-	lp := newLocalProvider(t)
+	repository := NewInMemRetainedQuotesRepository()
+	lp := newLocalProvider(t, repository)
 	if lp.account == nil {
 		t.Fatalf("account is empty")
 	}
@@ -142,7 +193,10 @@ func testGetQuoteLocal(t *testing.T) {
 	}
 	dec := json.NewDecoder(f)
 	cfg := ProviderConfig{}
-	dec.Decode(&cfg)
+	err = dec.Decode(&cfg)
+	if err != nil {
+		t.Fatal("error decoding config: ", err)
+	}
 	cfg.PwdFile = genTmpFile("1234\n1234\n", t).Name()
 
 	repository := NewInMemRetainedQuotesRepository()
@@ -152,7 +206,10 @@ func testGetQuoteLocal(t *testing.T) {
 	}
 
 	for _, q := range testQuotes {
-		nq := lp.GetQuote(q.inQ, uint64(q.gas), q.gasPrice)
+		nq, err := lp.GetQuote(q.inQ, q.gas, q.gasPrice)
+		if err != nil {
+			t.Fatal("error getting quote: ", err)
+		}
 
 		if nq == nil {
 			t.Fatal("empty quote")
@@ -163,10 +220,10 @@ func testGetQuoteLocal(t *testing.T) {
 		if nq.CallTime != cfg.CallTime {
 			t.Fatalf("invalid call time: %v", nq.CallTime)
 		}
-		if nq.CallFee != q.expectedQ.CallFee {
+		if nq.CallFee.Cmp(q.expectedQ.CallFee) != 0 {
 			t.Fatal("invalid call fee")
 		}
-		if nq.PenaltyFee != cfg.PenaltyFee {
+		if nq.PenaltyFee.Cmp(cfg.PenaltyFee) != 0 {
 			t.Fatal("invalid penalty fee")
 		}
 		if nq.Confirmations != q.expectedQ.Confirmations {
@@ -185,9 +242,10 @@ func testGetQuoteLocal(t *testing.T) {
 }
 
 func testSignQuoteLocal(t *testing.T) {
-	lp := newLocalProvider(t)
-	lp.SetLiquidity(big.NewInt(220))
-	reqLiq := big.NewInt(200)
+	repository := NewInMemRetainedQuotesRepository()
+	lp := newLocalProvider(t, repository)
+	repository.SetLiquidity(types.NewWei(220))
+	reqLiq := types.NewWei(200)
 	b, err := lp.SignQuote([]byte("12345678901234567890123456789012"), "abc", reqLiq)
 	if err != nil {
 		t.Fatal(err)
@@ -196,13 +254,14 @@ func testSignQuoteLocal(t *testing.T) {
 		t.Fatal("empty signature")
 	}
 
-	assert.EqualValues(t, big.NewInt(20), lp.liquidity)
+	assert.EqualValues(t, big.NewInt(20), repository.GetLiquidity())
 }
 
 func testInsufficientFunds(t *testing.T) {
-	lp := newLocalProvider(t)
-	lp.SetLiquidity(big.NewInt(100))
-	reqLiq := big.NewInt(101)
+	repository := NewInMemRetainedQuotesRepository()
+	lp := newLocalProvider(t, repository)
+	repository.SetLiquidity(types.NewWei(100))
+	reqLiq := types.NewWei(101)
 	_, err := lp.SignQuote([]byte("12345678901234567890123456789012"), "abc", reqLiq)
 	if err != nil {
 		assert.Errorf(t, err, "not enough liquidity. required: %v")
@@ -211,11 +270,12 @@ func testInsufficientFunds(t *testing.T) {
 
 func testLiquidityFluctuation(t *testing.T) {
 	quoteHash := "12345678901234567890123456789012"
-	lp := newLocalProvider(t)
-	initialLiq := big.NewInt(100)
-	lp.SetLiquidity(initialLiq)
-	reqLiq := big.NewInt(90)
-	expectedLiq := initialLiq.Int64() - reqLiq.Int64()
+	repository := NewInMemRetainedQuotesRepository()
+	lp := newLocalProvider(t, repository)
+	initialLiq := types.NewWei(100)
+	repository.SetLiquidity(initialLiq)
+	reqLiq := types.NewWei(90)
+	expectedLiq := new(types.Wei).Sub(initialLiq, reqLiq)
 	qb, err := hex.DecodeString(quoteHash)
 	if err != nil {
 		t.Fail()
@@ -225,23 +285,21 @@ func testLiquidityFluctuation(t *testing.T) {
 		t.Fail()
 	}
 
-	assert.EqualValues(t, expectedLiq, lp.liquidity.Int64())
+	assert.EqualValues(t, expectedLiq, repository.GetLiquidity())
 
-	err = lp.RefundLiquidity(qb)
-	if err != nil {
-		t.Fail()
-	}
+	repository.SetRetainedQuoteState(quoteHash, types.RQStateCallForUserSucceeded)
 
-	assert.EqualValues(t, initialLiq, lp.liquidity)
+	assert.EqualValues(t, initialLiq, repository.GetLiquidity())
 }
 
 func testLiquidityAbnormalFluctuation(t *testing.T) {
 	quoteHash := "12345678901234567890123456789012"
-	lp := newLocalProvider(t)
-	initialLiq := big.NewInt(200)
-	lp.SetLiquidity(initialLiq)
-	reqLiq := big.NewInt(90)
-	expectedLiq := initialLiq.Int64() - reqLiq.Int64()
+	repository := NewInMemRetainedQuotesRepository()
+	lp := newLocalProvider(t, repository)
+	initialLiq := types.NewWei(200)
+	repository.SetLiquidity(initialLiq)
+	reqLiq := types.NewWei(90)
+	expectedLiq := new(types.Wei).Sub(initialLiq, reqLiq)
 	qb, err := hex.DecodeString(quoteHash)
 	if err != nil {
 		t.Fail()
@@ -251,31 +309,28 @@ func testLiquidityAbnormalFluctuation(t *testing.T) {
 		t.Fail()
 	}
 
-	assert.EqualValues(t, expectedLiq, lp.liquidity.Int64())
+	assert.EqualValues(t, expectedLiq, repository.GetLiquidity())
 
 	_, err = lp.SignQuote(qb, "abc", reqLiq)
 	if err != nil {
 		t.Fail()
 	}
 
-	assert.EqualValues(t, expectedLiq, lp.liquidity.Int64())
+	assert.EqualValues(t, expectedLiq, repository.GetLiquidity())
 
-	err = lp.RefundLiquidity(qb)
-	if err != nil {
-		t.Fail()
-	}
+	repository.SetRetainedQuoteState(quoteHash, types.RQStateCallForUserSucceeded)
 
-	assert.EqualValues(t, initialLiq, lp.liquidity)
+	assert.EqualValues(t, initialLiq, repository.GetLiquidity())
 }
 
 func testSetLiquidity(t *testing.T) {
-	lp := newLocalProvider(t)
-	value := big.NewInt(20000)
-	lp.SetLiquidity(value)
-	assert.EqualValues(t, value, lp.liquidity)
+	repository := NewInMemRetainedQuotesRepository()
+	value := types.NewWei(20000)
+	repository.SetLiquidity(value)
+	assert.EqualValues(t, value, repository.GetLiquidity())
 }
 
-func newLocalProvider(t *testing.T) *LocalProvider {
+func newLocalProvider(t *testing.T, repository LocalProviderRepository) *LocalProvider {
 	f := genTmpFile("yes\n1234\n1234\n", t)
 	cfg := ProviderConfig{
 		BtcAddr:    btcAddr,
@@ -285,7 +340,6 @@ func newLocalProvider(t *testing.T) *LocalProvider {
 	}
 	defer f.Close()
 
-	repository := NewInMemRetainedQuotesRepository()
 	lp, err := NewLocalProvider(cfg, repository)
 	if err != nil {
 		t.Fatal("error creating local provider: ", err)

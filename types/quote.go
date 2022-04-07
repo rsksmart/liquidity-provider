@@ -7,13 +7,13 @@ type Quote struct {
 	BTCRefundAddr      string `json:"btcRefundAddr" db:"btc_refund_addr"`
 	RSKRefundAddr      string `json:"rskRefundAddr" db:"rsk_refund_addr"`
 	LPBTCAddr          string `json:"lpBTCAddr" db:"lp_btc_addr"`
-	CallFee            uint64 `json:"callFee" db:"call_fee"`
-	PenaltyFee         uint64 `json:"penaltyFee" db:"penalty_fee"`
+	CallFee            *Wei   `json:"callFee" db:"call_fee"`
+	PenaltyFee         *Wei   `json:"penaltyFee" db:"penalty_fee"`
 	ContractAddr       string `json:"contractAddr" db:"contract_addr"`
 	Data               string `json:"data" db:"data"`
 	GasLimit           uint32 `json:"gasLimit" db:"gas_limit"`
 	Nonce              int64  `json:"nonce" db:"nonce"`
-	Value              uint64 `json:"value" db:"value"`
+	Value              *Wei   `json:"value" db:"value"`
 	AgreementTimestamp uint32 `json:"agreementTimestamp" db:"agreement_timestamp"`
 	TimeForDeposit     uint32 `json:"timeForDeposit" db:"time_for_deposit"`
 	CallTime           uint32 `json:"callTime" db:"call_time"`

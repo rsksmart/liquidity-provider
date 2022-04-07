@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -26,25 +27,24 @@ import (
 )
 
 type LiquidityProvider interface {
-	GetQuote(types.Quote, uint64, uint64) *types.Quote
 	Address() string
-	SignQuote(hash []byte, depositAddr string, reqLiq *big.Int) ([]byte, error)
+	GetQuote(*types.Quote, uint64, *types.Wei) (*types.Quote, error)
+	SignQuote(hash []byte, depositAddr string, reqLiq *types.Wei) ([]byte, error)
 	SignTx(common.Address, *gethTypes.Transaction) (*gethTypes.Transaction, error)
-	SetLiquidity(value *big.Int)
-	RefundLiquidity(hash []byte) error
 }
 
-type RetainedQuotesRepository interface {
-	RetainQuote(*types.RetainedQuote) error
-	GetRetainedQuote(hash string) (*types.RetainedQuote, error) // returns nil, if not found
+type LocalProviderRepository interface {
+	RetainQuote(rq *types.RetainedQuote) error
+	HasRetainedQuote(hash string) (bool, error)
+	HasLiquidity(lp LiquidityProvider, wei *types.Wei) (bool, error)
 }
 
 type LocalProvider struct {
+	mu         sync.Mutex
 	account    *accounts.Account
 	ks         *keystore.KeyStore
 	cfg        ProviderConfig
-	liquidity  *big.Int
-	repository RetainedQuotesRepository
+	repository LocalProviderRepository
 }
 
 type ProviderConfig struct {
@@ -57,15 +57,11 @@ type ProviderConfig struct {
 	Confirmations  map[int]uint16
 	TimeForDeposit uint32
 	CallTime       uint32
-	CallFee        uint64
-	PenaltyFee     uint64
+	CallFee        *types.Wei
+	PenaltyFee     *types.Wei
 }
 
-type InMemRetainedQuotesRepository struct {
-	retainedQuotes map[string]*types.RetainedQuote
-}
-
-func NewLocalProvider(config ProviderConfig, repository RetainedQuotesRepository) (*LocalProvider, error) {
+func NewLocalProvider(config ProviderConfig, repository LocalProviderRepository) (*LocalProvider, error) {
 	if config.Keydir == "" {
 		config.Keydir = "keystore"
 	}
@@ -79,11 +75,13 @@ func NewLocalProvider(config ProviderConfig, repository RetainedQuotesRepository
 		if err != nil {
 			return nil, fmt.Errorf("error opening file: %v", config.PwdFile)
 		}
-		defer f.Close()
+		defer func(f *os.File) {
+			_ = f.Close()
+		}(f)
 	}
 
 	ks := keystore.NewKeyStore(config.Keydir, keystore.StandardScryptN, keystore.StandardScryptP)
-	acc, err := retreiveOrCreateAccount(ks, config.AccountNum, f)
+	acc, err := retrieveOrCreateAccount(ks, config.AccountNum, f)
 
 	if err != nil {
 		return nil, err
@@ -92,65 +90,41 @@ func NewLocalProvider(config ProviderConfig, repository RetainedQuotesRepository
 		account:    acc,
 		ks:         ks,
 		cfg:        config,
-		liquidity:  big.NewInt(0),
 		repository: repository,
 	}
 	return &lp, nil
-}
-
-func (lp *LocalProvider) GetQuote(q types.Quote, gas uint64, gasPrice uint64) *types.Quote {
-	q.LPBTCAddr = lp.cfg.BtcAddr
-	q.LPRSKAddr = lp.account.Address.String()
-	q.AgreementTimestamp = uint32(time.Now().Unix())
-	q.Nonce = int64(rand.Int())
-	q.TimeForDeposit = lp.cfg.TimeForDeposit
-	q.CallTime = lp.cfg.CallTime
-	q.PenaltyFee = lp.cfg.PenaltyFee
-
-	q.Confirmations = lp.cfg.MaxConf
-	for _, k := range sortedConfirmations(lp.cfg.Confirmations) {
-		v := lp.cfg.Confirmations[k]
-
-		if q.Value < uint64(k) {
-			q.Confirmations = v
-			break
-		}
-	}
-	callCost := gasPrice * gas
-	q.CallFee = callCost + lp.cfg.CallFee
-	return &q
 }
 
 func (lp *LocalProvider) Address() string {
 	return lp.account.Address.String()
 }
 
-func (lp *LocalProvider) SetLiquidity(value *big.Int) {
-	lp.liquidity = value
+func (lp *LocalProvider) GetQuote(q *types.Quote, gas uint64, gasPrice *types.Wei) (*types.Quote, error) {
+	res := *q
+	res.LPBTCAddr = lp.cfg.BtcAddr
+	res.LPRSKAddr = lp.account.Address.String()
+	res.AgreementTimestamp = uint32(time.Now().Unix())
+	res.Nonce = int64(rand.Int())
+	res.TimeForDeposit = lp.cfg.TimeForDeposit
+	res.CallTime = lp.cfg.CallTime
+	res.PenaltyFee = lp.cfg.PenaltyFee.Copy()
+
+	res.Confirmations = lp.cfg.MaxConf
+	for _, k := range sortedConfirmations(lp.cfg.Confirmations) {
+		v := lp.cfg.Confirmations[k]
+
+		if res.Value.AsBigInt().Uint64() < uint64(k) {
+			res.Confirmations = v
+			break
+		}
+	}
+	callCost := new(types.Wei).Mul(gasPrice, types.NewUWei(gas))
+	res.CallFee = new(types.Wei).Add(callCost, lp.cfg.CallFee)
+	return &res, nil
 }
 
-func (lp *LocalProvider) RefundLiquidity(hash []byte) error {
-	h := hex.EncodeToString(hash)
-	rq, err := lp.repository.GetRetainedQuote(h)
-	if err != nil {
-		return err
-	}
-	if rq == nil {
-		return fmt.Errorf("retained quote not found: %s", h)
-	}
-	lp.liquidity.Add(lp.liquidity, big.NewInt(int64(rq.ReqLiq)))
-	return nil
-}
-
-func (lp *LocalProvider) SignQuote(hash []byte, depositAddr string, reqLiq *big.Int) ([]byte, error) {
-	if lp.liquidity.Int64()-reqLiq.Int64() < 0 {
-		return nil, fmt.Errorf("not enough liquidity. required: %v", reqLiq)
-	}
+func (lp *LocalProvider) SignQuote(hash []byte, depositAddr string, reqLiq *types.Wei) ([]byte, error) {
 	quoteHash := hex.EncodeToString(hash)
-	rq, err := lp.repository.GetRetainedQuote(quoteHash)
-	if err != nil {
-		return nil, err
-	}
 
 	var buf bytes.Buffer
 	buf.WriteString("\x19Ethereum Signed Message:\n32")
@@ -162,21 +136,34 @@ func (lp *LocalProvider) SignQuote(hash []byte, depositAddr string, reqLiq *big.
 	}
 	signB[len(signB)-1] += 27 // v must be 27 or 28
 
-	if rq == nil {
+	lp.mu.Lock()
+	defer lp.mu.Unlock()
+
+	hasRq, err := lp.repository.HasRetainedQuote(quoteHash)
+	if err != nil {
+		return nil, err
+	}
+	if !hasRq {
+		hasLiquidity, err := lp.repository.HasLiquidity(lp, reqLiq)
+		if err != nil {
+			return nil, err
+		}
+		if !hasLiquidity {
+			return nil, fmt.Errorf("not enough liquidity. required: %v", reqLiq)
+		}
+
 		signature := hex.EncodeToString(signB)
 		rq := types.RetainedQuote{
 			QuoteHash:   quoteHash,
 			DepositAddr: depositAddr,
 			Signature:   signature,
-			ReqLiq:      reqLiq.Uint64(),
+			ReqLiq:      reqLiq.Copy(),
 			State:       types.RQStateWaitingForDeposit,
 		}
 		err = lp.repository.RetainQuote(&rq)
 		if err != nil {
 			return nil, err
 		}
-
-		lp.liquidity.Sub(lp.liquidity, reqLiq)
 	}
 
 	return signB, nil
@@ -189,13 +176,13 @@ func (lp *LocalProvider) SignTx(address common.Address, tx *gethTypes.Transactio
 	return lp.ks.SignTx(*lp.account, tx, lp.cfg.ChainId)
 }
 
-func retreiveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
+func retrieveOrCreateAccount(ks *keystore.KeyStore, accountNum int, in *os.File) (*accounts.Account, error) {
 	if cap(ks.Accounts()) == 0 {
 		log.Info("no RSK account found")
 		acc, err := createAccount(ks, in)
 		return acc, err
 	} else {
-		if cap(ks.Accounts()) <= int(accountNum) {
+		if cap(ks.Accounts()) <= accountNum {
 			return nil, fmt.Errorf("account number %v not found", accountNum)
 		}
 		acc := ks.Accounts()[accountNum]
@@ -280,9 +267,9 @@ func createPasswd(in *os.File) (string, error) {
 	return pwd1, nil
 }
 
-func readPasswdCons(r *bufio.Reader) (string, error) {
-	bytes, err := term.ReadPassword(int(syscall.Stdin))
-	return string(bytes), err
+func readPasswdCons(_ *bufio.Reader) (string, error) {
+	pass, err := term.ReadPassword(syscall.Stdin)
+	return string(pass), err
 }
 
 func readPasswdReader(r *bufio.Reader) (string, error) {
@@ -302,23 +289,4 @@ func sortedConfirmations(m map[int]uint16) []int {
 	}
 	sort.Ints(keys)
 	return keys
-}
-
-func NewInMemRetainedQuotesRepository() *InMemRetainedQuotesRepository {
-	return &InMemRetainedQuotesRepository{
-		retainedQuotes: make(map[string]*types.RetainedQuote),
-	}
-}
-
-func (s InMemRetainedQuotesRepository) RetainQuote(quote *types.RetainedQuote) error {
-	s.retainedQuotes[quote.QuoteHash] = quote
-	return nil
-}
-
-func (s InMemRetainedQuotesRepository) GetRetainedQuote(hash string) (*types.RetainedQuote, error) {
-	q, ok := s.retainedQuotes[hash]
-	if !ok {
-		return nil, nil
-	}
-	return q, nil
 }
