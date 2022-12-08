@@ -30,11 +30,11 @@ var (
 	expectedSign = [2]signature{
 		{
 			h: "4545454545454545454545454545454545454545454545454545454545454545",
-			s: "5747fc2a9327abf9a3dd8caf454b41dc867f2f33b6fdf1caad1d0b050ce43ceb35cc2214ed808af3598f44d4dfb15e5dfafd88c6367b0c9820b4076a22e3dcdc1b",
+			s: "329389e8c4cb329cdcb88e44e524abedc7492a8d9b210037879874ce8103d5a2491f947010a18f7fab43d91b35e8ec8cf7760f6ab8806f53ef1c7644e7bf8b741b",
 		},
 		{
 			h: "4545454545454545454545454545454545454545454545454523454545454545",
-			s: "709e2e47aa3b77fd151d3595753b06f155fab4427adc08e655811feb89edb9fa672d997c3e21449a6fd01b22f4d43483e8bb9dc249488e77cf3d3c265a20652b1c",
+			s: "02333b55f159f2e21b58f22f3f06cf1ed4aaec74caa43be736ab7d09de119965522557fef9f4ecb1b61950c732fac49a81c18b8d7972c8f7e3d89b82cd1dcb141b",
 		},
 	}
 
@@ -118,7 +118,7 @@ func (r *InMemLocalProviderRepository) SetRetainedQuoteState(hash string, state 
 }
 
 func testSignature(t *testing.T) {
-	f := genTmpFile("1234\n1234\n", t)
+	f := genTmpFile("correct horse battery staple\ncorrect horse battery staple\n", t)
 	defer f.Close()
 
 	cfg := ProviderConfig{
@@ -150,17 +150,17 @@ func testSignature(t *testing.T) {
 }
 
 func testCreatePassword(t *testing.T) {
-	f1 := genTmpFile("yes\n1234\n1234\n", t)
+	f1 := genTmpFile("yes\ncorrect horse battery staple\ncorrect horse battery staple\n", t)
 	defer f1.Close()
 	pwd, err := createPasswd(f1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pwd != "1234" {
+	if pwd != "correct horse battery staple" {
 		t.Fatalf("expected 1234, got %v", pwd)
 	}
 
-	f2 := genTmpFile("yes\n1234\n14\n", t)
+	f2 := genTmpFile("yes\ncorrect horse battery staple\ncorrect horse battery step\n", t)
 	defer f2.Close()
 	_, err = createPasswd(f2)
 	if err == nil {
@@ -197,7 +197,7 @@ func testGetQuoteLocal(t *testing.T) {
 	if err != nil {
 		t.Fatal("error decoding config: ", err)
 	}
-	cfg.PwdFile = genTmpFile("1234\n1234\n", t).Name()
+	cfg.PwdFile = genTmpFile("correct horse battery staple\ncorrect horse battery staple\n", t).Name()
 
 	repository := NewInMemRetainedQuotesRepository()
 	lp, err := NewLocalProvider(cfg, repository)
@@ -331,7 +331,7 @@ func testSetLiquidity(t *testing.T) {
 }
 
 func newLocalProvider(t *testing.T, repository LocalProviderRepository) *LocalProvider {
-	f := genTmpFile("yes\n1234\n1234\n", t)
+	f := genTmpFile("yes\ncorrect horse battery staple\ncorrect horse battery staple\n", t)
 	cfg := ProviderConfig{
 		BtcAddr:    btcAddr,
 		Keydir:     t.TempDir(),
