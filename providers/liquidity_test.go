@@ -173,6 +173,13 @@ func testCreatePassword(t *testing.T) {
 	if err == nil {
 		t.Fatal("did not fail when yes is not typed")
 	}
+
+	f4 := genTmpFile("yes\n1234\n1234\n", t)
+	defer f4.Close()
+	_, err = createPasswd(f4)
+	if err == nil {
+		t.Fatal("did not fail when password is not secure enough")
+	}
 }
 
 func testNewLocal(t *testing.T) {
