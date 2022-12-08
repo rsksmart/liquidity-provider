@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/rsksmart/liquidity-provider/types"
 	log "github.com/sirupsen/logrus"
+	passwordvalidator "github.com/wagslane/go-password-validator"
 	"golang.org/x/term"
 )
 
@@ -253,6 +254,12 @@ func createPasswd(in *os.File) (string, error) {
 	fmt.Println()
 	if err != nil {
 		return "", err
+	}
+
+	const minEntropyBits = 70
+	err = passwordvalidator.Validate(pwd1, minEntropyBits)
+	if err != nil {
+		return "", errors.New("password is not secure enough")
 	}
 
 	fmt.Print("repeat password: ")
