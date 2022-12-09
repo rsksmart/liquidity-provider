@@ -157,7 +157,7 @@ func testCreatePassword(t *testing.T) {
 		t.Fatal(err)
 	}
 	if pwd != "correct horse battery staple" {
-		t.Fatalf("expected 1234, got %v", pwd)
+		t.Fatalf("expected \"correct horse battery staple\", got %v", pwd)
 	}
 
 	f2 := genTmpFile("yes\ncorrect horse battery staple\ncorrect horse battery step\n", t)
