@@ -256,10 +256,10 @@ func createPasswd(in *os.File) (string, error) {
 		return "", err
 	}
 
-	const minEntropyBits = 70
+	const minEntropyBits = 100
 	err = passwordvalidator.Validate(pwd1, minEntropyBits)
 	if err != nil {
-		return "", errors.New("password is not secure enough")
+		return "", errors.New("password is not secure enough: " + err.Error())
 	}
 
 	fmt.Print("repeat password: ")
