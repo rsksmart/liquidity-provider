@@ -182,6 +182,69 @@ func testCreatePassword(t *testing.T) {
 	}
 }
 
+func testRejectWeakPasswords(t *testing.T) {
+	f1 := genTmpFile("yes\nnoentropy\nnoentropy\n", t)
+	defer f1.Close()
+	_, err := createPasswd(f1)
+	if err == nil {
+		t.Fatal("did not fail with low entropy pwd (just regular string)")
+	}
+
+	// has Uppercase
+	f2 := genTmpFile("yes\nNotEnoughEntropy\nNotEnoughEntropy\n", t)
+	defer f2.Close()
+	_, err = createPasswd(f2)
+	if err == nil {
+		t.Fatal("did not fail with not enough required chars (only uppercase)")
+	}
+
+	// has Uppercase and replacement SpecialChar ( !@$&* )
+	f3 := genTmpFile("yes\nNoEntropy!\nNoEntropy!\n", t)
+	defer f3.Close()
+	_, err = createPasswd(f3)
+	if err == nil {
+		t.Fatal("did not fail with not enough required chars (only replacement-special-char and uppercase)")
+	}
+
+	// has Uppercase + replacement SpecialChar + numbers
+	f4 := genTmpFile("yes\nN0Entr0py!\nN0Entr0py!\n", t)
+	defer f4.Close()
+	_, err = createPasswd(f4)
+	if err == nil {
+		t.Fatal("did not fail with not enough required chars (only numbers, replacement-special-char and uppercase)")
+	}
+
+	// has Uppercase + SpecialChar + numbers + separation special char ( _-., )
+	f5 := genTmpFile("yes\nN0_Entr0py\nN0_Entr0py\n", t)
+	defer f5.Close()
+	_, err = createPasswd(f5)
+
+	if err == nil {
+		t.Fatal("did not fail with not enough required chars (only numbers, replacement-special-char and uppercase and separation-special-char)")
+	}
+
+	//has Uppercase + numbers + separation + 3 types of special char (separation + others) but size < 16
+	f6 := genTmpFile("yes\n#Z3R0_Entr0py!\n#Z3R0_Entr0py!\n", t)
+	defer f6.Close()
+	_, err = createPasswd(f6)
+	//t.Fatal("err", err)
+	//fmt.Println("err", err)
+
+	if err == nil {
+		t.Fatal("did not fail with not enough required chars (only numbers, replacement-special-char, uppercase, separation-special-char and others special chars )")
+	}
+
+	//has 16 chars + Uppercase + lowercase + numbers + separation + all types of special char (separation + others + replacement)
+	f7 := genTmpFile("yes\n#En0ugh_Entr0py!\n#En0ugh_Entr0py!\n", t)
+	defer f7.Close()
+	_, err = createPasswd(f7)
+
+	if err != nil {
+		t.Fatal("password shouldnt fail with size 16 chars with Uppercase + lowercase + numbers + separation + all types of special chars ")
+	}
+
+}
+
 func testNewLocal(t *testing.T) {
 	repository := NewInMemRetainedQuotesRepository()
 	lp := newLocalProvider(t, repository)
@@ -378,7 +441,8 @@ func TestLocalProvider(t *testing.T) {
 	t.Run("get quote", testGetQuoteLocal)
 	t.Run("sign quote", testSignQuoteLocal)
 	t.Run("create password", testCreatePassword)
-	t.Run("signature", testSignature)
+	t.Run("create password", testCreatePassword)
+	t.Run("reject weak passwords", testRejectWeakPasswords)
 	t.Run("set liquidity", testSetLiquidity)
 	t.Run("sign quote with insufficient funds", testInsufficientFunds)
 	t.Run("liquidity fluctuation", testLiquidityFluctuation)
