@@ -9,6 +9,7 @@ const (
 	RQStateCallForUserFailed
 	RQStateRegisterPegInSucceeded
 	RQStateRegisterPegInFailed
+	RQStateWaitingForDepositConfirmations
 )
 
 type RetainedQuote struct {
