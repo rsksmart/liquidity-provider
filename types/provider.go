@@ -1,6 +1,8 @@
 package types
 
 type GlobalProvider struct {
+    Id               uint64 `json:"id" example:"1" description:"Provider Id"`
+    Provider         string `json:"provider" example:"0x0" description:"Provider Address"`
     Name             string `json:"name" example:"New Provider" description:"Provider Name"`
     Fee              uint   `json:"fee" example:"100" description:"Fee in wei"`
     QuoteExpiration  uint   `json:"quoteExpiration" example:"100" description:"Quote expiration in seconds"`
