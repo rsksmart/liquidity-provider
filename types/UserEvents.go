@@ -7,10 +7,7 @@ import (
 )
 type UserEvents struct {
 	From      common.Address `json:"from" example:"0x0" description:"From Address"`
-	Dest      common.Address `json:"dest" example:"0x0" description:"Destination Address"`
-	GasLimit  *big.Int       `json:"gasLimit" example:"10000" description:"Gas Limit"`
-	Value     *big.Int       `json:"value" example:"10000" description:"Event Value"`
-	Data      string         `json:"data" example:"" description:"Event Data"`
-	Success   bool	         `json:"success" example:"true" description:"Event Status"`
+	Amount     *big.Int      `json:"amount" example:"10000" description:"Event Value"`
+	Timestamp  *big.Int      `json:"timestamp" example:"10000" description:"Event Timestamp"`
 	QuoteHash string         `json:"quoteHash" example:"0x0" description:"QuoteHash"`
 }
